@@ -400,6 +400,10 @@ func (ds *DataSetList) rowData2interface(rowIdx int, m map[string][]interface{},
 		if tag == "" {
 			tag = typ.Field(i).Name
 		}
+		ind := strings.Index(tag, ",")
+		if ind > 0 {
+			tag = tag[0:ind]
+		}
 
 		if tag != "" && tag != "-" {
 			vtag := strings.ToLower(tag)
