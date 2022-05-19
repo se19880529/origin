@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/duanhf2012/origin/log"
 	"strconv"
 	"time"
+
+	"github.com/duanhf2012/origin/log"
 
 	"github.com/duanhf2012/origin/service"
 	"github.com/gomodule/redigo/redis"
@@ -137,6 +138,11 @@ func (m *RedisModule) SetStringExpire(key, value, expire string) (err error) {
 	return err
 }
 
+func (m *RedisModule) SetStringNxExpire(key, value, expire string) (err error) {
+	err = m.setStringNxByExpire(key, value, expire)
+	return
+}
+
 func (m *RedisModule) SetStringJSON(key interface{}, val interface{}) (err error) {
 	err = m.SetStringJSONExpire(key, val, "-1")
 
@@ -149,6 +155,40 @@ func (m *RedisModule) SetStringJSONExpire(key interface{}, val interface{}, expi
 	}
 
 	return err
+}
+
+func (m *RedisModule) setStringNxByExpire(key, value, expire interface{}) error {
+	if key == "" {
+		return errors.New("Key Is Empty")
+	}
+
+	conn, err := m.getConn()
+	if err != nil {
+		return err
+	}
+	defer conn.Close()
+
+	var ret interface{}
+	var retErr error
+	if expire == "-1" {
+		ret, retErr = conn.Do("SET", key, value)
+	} else {
+		ret, retErr = conn.Do("SET", key, value, "NX", "EX", expire)
+	}
+
+	if retErr != nil {
+		log.Error("setStringByExpire fail,reason:%v", retErr)
+		return retErr
+	}
+
+	_, ok := ret.(string)
+	if !ok {
+		retErr = errors.New("setStringByExpire redis data is error")
+		log.Error("setStringByExpire redis data is error")
+		return retErr
+	}
+
+	return nil
 }
 
 func (m *RedisModule) setStringByExpire(key, value, expire interface{}) error {
