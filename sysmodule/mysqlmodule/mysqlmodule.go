@@ -4,13 +4,14 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/duanhf2012/origin/log"
 	"net/url"
 	"reflect"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/duanhf2012/origin/log"
 
 	"github.com/duanhf2012/origin/service"
 	_ "github.com/go-sql-driver/mysql"
@@ -318,6 +319,13 @@ func exec(slowDuration time.Duration,db dbControl,strSql string, args ...interfa
 	ret.RowsAffected, _ = res.RowsAffected()
 
 	return ret, nil
+}
+
+func (ds *DataSetList) RowCount(setIndex int) int {
+	if setIndex < 0 || setIndex >= len(ds.dataSetList) {
+		return 0
+	}
+	return ds.dataSetList[setIndex].rowNum
 }
 
 func (ds *DataSetList) UnMarshal(args ...interface{}) error {
