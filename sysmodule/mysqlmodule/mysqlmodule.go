@@ -33,10 +33,7 @@ type PingExecute struct {
 type MySQLModule struct {
 	service.Module
 	db               *sql.DB
-	url              string
-	username         string
-	password         string
-	dbname           string
+	param  			 MySQLModuleParam
 	slowDuration        time.Duration
 	pingCoroutine 	 PingExecute
 	waitGroup    	 sync.WaitGroup
@@ -70,15 +67,53 @@ type dbControl interface {
 	Query(query string, args ...interface{}) (*sql.Rows, error)
 }
 
+type MySQLModuleParam struct {
+	Url              string
+	Username         string
+	Password         string
+	Dbname           string
+	Charset			 string
+	MaxConn			 int
+	ParseTime		 bool
+	ReadTimeout		 int
+	Timeout 		 int
+	WriteTimeout     int
+	Locale			 string
+}
 
-func (m *MySQLModule) Init( url string, userName string, password string, dbname string,maxConn int) error {
-	m.url = url
-	m.username = userName
-	m.password = password
-	m.dbname = dbname
+
+func (m *MySQLModule) InitWithParam(param MySQLModuleParam) error {
+	if param.Charset == "" {
+		param.Charset = "utf8"
+	}
+	if param.ReadTimeout == 0 {
+		param.ReadTimeout = 30
+	}
+	if param.WriteTimeout == 0 {
+		param.WriteTimeout = 30
+	}
+	if param.Timeout == 0 {
+		param.Timeout = 15
+	}
+	if param.MaxConn == 0 {
+		param.MaxConn = 1
+	}
+	if param.Locale == "" {
+		param.Locale = time.Local.String()
+	}
+	m.param = param
 	m.pingCoroutine = PingExecute{tickerPing : time.NewTicker(5*time.Second), pintExit : make(chan bool, 1)}
 
-	return m.connect(maxConn)
+	return m.connect(param.MaxConn)
+}
+func (m *MySQLModule) Init( url string, userName string, password string, dbname string,maxConn int) error {
+	return m.InitWithParam(MySQLModuleParam{
+		Url: url,
+		Username: userName,
+		Password: password,
+		Dbname: dbname,
+		MaxConn: maxConn,
+	})
 }
 
 func (m *MySQLModule) SetQuerySlowTime(slowDuration time.Duration) {
@@ -129,12 +164,21 @@ func (slf *Tx) Exec(strSql string, args ...interface{}) (*DBResult, error) {
 
 // Connect ...
 func (m *MySQLModule) connect(maxConn int) error {
-	cmd := fmt.Sprintf("%s:%s@tcp(%s)/%s?charset=utf8&parseTime=true&loc=%s&readTimeout=30s&timeout=15s&writeTimeout=30s",
-		m.username,
-		m.password,
-		m.url,
-		m.dbname,
-		url.QueryEscape(time.Local.String()))
+	parseTimeStr := "true"
+	if !m.param.ParseTime {
+		parseTimeStr = "false"
+	}
+	cmd := fmt.Sprintf("%s:%s@tcp(%s)/%s?charset=%s&parseTime=%s&loc=%s&readTimeout=%ds&timeout=%ds&writeTimeout=%ds",
+		m.param.Username,
+		m.param.Password,
+		m.param.Url,
+		m.param.Dbname,
+		m.param.Charset,
+		parseTimeStr,
+		url.QueryEscape(m.param.Locale),
+		m.param.ReadTimeout,
+		m.param.Timeout,
+		m.param.WriteTimeout)
 
 	db, err := sql.Open("mysql", cmd)
 	if err != nil {
